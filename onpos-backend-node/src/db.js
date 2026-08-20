@@ -3,6 +3,10 @@ const { Pool } = require('pg');
 const useSsl = process.env.DATABASE_SSL === 'true';
 const databaseHost = process.env.DB_HOST || '';
 const isSupabaseSharedPooler = databaseHost.endsWith('.pooler.supabase.com');
+const supabaseProjectRef = process.env.SUPABASE_PROJECT_REF || 'hduchdouvqupvsluqnzf';
+const databaseUser = isSupabaseSharedPooler
+  ? `postgres.${supabaseProjectRef}`
+  : (process.env.DB_USER || 'postgres');
 const rejectUnauthorized = process.env.DATABASE_SSL_REJECT_UNAUTHORIZED
   ? process.env.DATABASE_SSL_REJECT_UNAUTHORIZED !== 'false'
   : !isSupabaseSharedPooler;
@@ -13,7 +17,7 @@ const connection = process.env.DATABASE_URL
       host: process.env.DB_HOST || 'localhost',
       port: Number(process.env.DB_PORT || 5433),
       database: process.env.DB_NAME || 'onpos',
-      user: process.env.DB_USER || 'postgres',
+      user: databaseUser,
       password: process.env.DB_PASSWORD || 'password',
     };
 

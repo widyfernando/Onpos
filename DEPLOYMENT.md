@@ -18,6 +18,8 @@ Jika Render meminta verifikasi kartu, backend Express dapat dijalankan sebagai p
 
 Sebagai alternatif `DATABASE_URL`, Vercel dapat memakai `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, dan `DB_PASSWORD` secara terpisah. Cara ini menghindari kebutuhan URL-encode untuk password yang mengandung simbol.
 
+Untuk project BikeStore, backend mengenali project reference Supabase dan membentuk username Shared Pooler secara otomatis. `DB_USER` dapat dihapus dari Vercel; jika project Supabase diganti, isi `SUPABASE_PROJECT_REF` dengan reference project yang baru.
+
 Untuk Shared Pooler Supabase yang mengembalikan rantai sertifikat privat, set `DATABASE_SSL=true` dan `DATABASE_SSL_REJECT_UNAUTHORIZED=false`. Koneksi tetap memakai TLS, tetapi validasi CA oleh client Node dinonaktifkan. Untuk verifikasi sertifikat penuh, pasang CA certificate Supabase pada runtime dan pertahankan nilai `true`.
 
 Frontend kemudian diimport sebagai project Vercel terpisah dengan Root Directory repository (`.`). Dengan susunan ini frontend dan backend memiliki URL berbeda, tetapi keduanya tetap auto-deploy dari repository GitHub yang sama.
