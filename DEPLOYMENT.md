@@ -13,7 +13,7 @@ Tidak ada password, DSN, atau secret production yang disimpan di repository. Sem
 1. Buat project Supabase dan simpan database password dengan aman.
 2. Buka **Connect** lalu salin URI **Session pooler**. Mode ini cocok untuk backend Render yang berjalan terus-menerus dan membutuhkan koneksi IPv4.
 3. Pastikan URI memakai SSL. Jika belum memiliki parameter, tambahkan `?sslmode=require` di akhir URI.
-4. Dari komputer lokal, jalankan migrasi dan seed satu kali:
+4. Migrasi dan data awal akan dijalankan otomatis saat backend pertama kali aktif di Render. Jika ingin menginisialisasi dari komputer lokal, jalankan:
 
    ```powershell
    cd onpos-backend-node
@@ -49,7 +49,7 @@ Setelah deploy, periksa:
 - Login dan endpoint API dapat diakses dari frontend.
 - Tidak ada error koneksi database di **Render > Logs**.
 
-Startup Render menjalankan migrasi idempoten sebelum server aktif, sehingga database baru dan perubahan kolom tetap sinkron.
+Startup Render menjalankan migrasi dan seed idempoten sebelum server aktif. Database baru langsung memiliki tabel dan data awal, sedangkan deploy berikutnya tidak mereset password admin atau menggandakan penomoran.
 
 ## 3. Frontend di Vercel
 

@@ -74,7 +74,7 @@ async function seed() {
     await client.query(
       `INSERT INTO users (user_id, username, nama, password, email, is_aktif, grup_id, dept_id, jabatan_id)
        VALUES ('U_ADMIN', 'admin123', 'Admin', $1, 'admin@gmail.com', true, 'G00006', 'D00002', 'J00001')
-       ON CONFLICT (user_id) DO UPDATE SET password = EXCLUDED.password, is_aktif = true`,
+       ON CONFLICT (user_id) DO NOTHING`,
       [generateWerkzeugScryptHash('admin123')]
     );
 
@@ -92,7 +92,12 @@ async function seed() {
       ['kategori', 1],
     ];
     for (const [kategori, nomor] of penomoran) {
-      await client.query('INSERT INTO penomoran (kategori, nomor) VALUES ($1, $2) ON CONFLICT DO NOTHING', [kategori, nomor]);
+      await client.query(
+        `INSERT INTO penomoran (kategori, nomor)
+         SELECT $1::varchar, $2::integer
+         WHERE NOT EXISTS (SELECT 1 FROM penomoran WHERE kategori = $1::varchar)`,
+        [kategori, nomor]
+      );
     }
   });
 }
