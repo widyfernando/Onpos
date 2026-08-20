@@ -6,6 +6,18 @@ Arsitektur production:
 - Backend Node.js/Express: Render
 - Database PostgreSQL: Supabase
 
+## Alternatif tanpa kartu: backend di Vercel
+
+Jika Render meminta verifikasi kartu, backend Express dapat dijalankan sebagai project Vercel kedua pada plan Hobby:
+
+1. Import repository yang sama ke Vercel.
+2. Beri nama project `bikestore-api`.
+3. Set **Root Directory** ke `onpos-backend-node`.
+4. Tambahkan environment variable backend seperti pada bagian Render, tetapi gunakan Supabase **Transaction pooler** port `6543` dan set `DATABASE_POOL_MAX=1`.
+5. Deploy. File `onpos-backend-node/vercel.json` mengatur Express, region Singapore, migrasi, dan seed otomatis.
+
+Frontend kemudian diimport sebagai project Vercel terpisah dengan Root Directory repository (`.`). Dengan susunan ini frontend dan backend memiliki URL berbeda, tetapi keduanya tetap auto-deploy dari repository GitHub yang sama.
+
 Tidak ada password, DSN, atau secret production yang disimpan di repository. Semua nilai rahasia harus dimasukkan lewat dashboard masing-masing layanan.
 
 ## 1. Supabase
