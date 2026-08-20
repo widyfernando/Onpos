@@ -1,7 +1,11 @@
 const { Pool } = require('pg');
 
 const useSsl = process.env.DATABASE_SSL === 'true';
-const rejectUnauthorized = process.env.DATABASE_SSL_REJECT_UNAUTHORIZED !== 'false';
+const databaseHost = process.env.DB_HOST || '';
+const isSupabaseSharedPooler = databaseHost.endsWith('.pooler.supabase.com');
+const rejectUnauthorized = process.env.DATABASE_SSL_REJECT_UNAUTHORIZED
+  ? process.env.DATABASE_SSL_REJECT_UNAUTHORIZED !== 'false'
+  : !isSupabaseSharedPooler;
 
 const connection = process.env.DATABASE_URL
   ? { connectionString: process.env.DATABASE_URL }
