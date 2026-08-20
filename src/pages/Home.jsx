@@ -10,6 +10,7 @@ import Mastergroup from "../Mainpage/admin/mastergroup";
 import MasterMenu from "../Mainpage/admin/mastermenu";
 import MasterSatuanBarang from "../Mainpage/admin/mastersatuanbarang";
 import MasterKategoriBarang from "../Mainpage/admin/masterkategoribarang";
+import OrganizationMaster from "../Mainpage/admin/organizationmaster";
 import Inventory from "../Mainpage/admin/inventory";
 import MasterBarang from "../Mainpage/admin/masterbarang";
 import StockOpname from "../Mainpage/admin/stockopname";
@@ -39,7 +40,7 @@ const Home = ({ onLogout, user = {} }) => {
   const dropdownRef = useRef(null);
 // --- LOGIKA REVISI: DISABLE NAVIGASI ---
   // Daftar halaman yang akan mengunci navigasi menu utama
-  const lockedPages = ["master", "data-barang-umum", "master-barang", "master-satuan-barang", "master-kategori-barang", "inventory", "transaksi-penjualan", "stock-opname", "reports", "otoritas", "master-group", "pengaturan-pengguna", "master-users"];
+  const lockedPages = ["master", "data-barang-umum", "master-barang", "master-satuan-barang", "master-kategori-barang", "master-departemen", "master-jabatan", "inventory", "transaksi-penjualan", "stock-opname", "reports", "otoritas", "master-group", "pengaturan-pengguna", "master-users"];
   const inventoryFlowPages = ["inventory", "master-barang", "data-barang-umum", "master-kategori-barang", "master-satuan-barang", "stock-opname"];
   const isLocked = lockedPages.includes(activePage);
   const allMenuItems = [
@@ -129,6 +130,10 @@ const Home = ({ onLogout, user = {} }) => {
         return renderInventoryModule(<MasterSatuanBarang onClose={() => setActivePage("inventory")} />);
       case "master-kategori-barang":
         return renderInventoryModule(<MasterKategoriBarang onClose={() => setActivePage("inventory")} />);
+      case "master-departemen":
+        return <OrganizationMaster type="departemen" onClose={setActivePage} />;
+      case "master-jabatan":
+        return <OrganizationMaster type="jabatan" onClose={setActivePage} />;
       case "master-barang":
       case "data-barang-umum":
         return renderInventoryModule(<MasterBarang onClose={() => setActivePage("inventory")} />);

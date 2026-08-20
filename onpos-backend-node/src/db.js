@@ -75,6 +75,8 @@ async function ensureSchema() {
     ['M00005', 'Master Group User', 'master-group', 'M00032'],
     ['M00004', 'Pengaturan Pengguna', 'pengaturan-pengguna', 'M00032'],
     ['M00033', 'Master Users', 'master-users', 'M00001'],
+    ['M00034', 'Master Departemen', 'master-departemen', 'M00032'],
+    ['M00035', 'Master Jabatan', 'master-jabatan', 'M00032'],
   ];
   const activeMenuIds = menus.map(([menuId]) => menuId);
 

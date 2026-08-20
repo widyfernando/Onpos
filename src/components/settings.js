@@ -5,12 +5,28 @@ import {
   FaUserCog,
   FaUserLock,
   FaUsers,
+  FaBuilding,
+  FaBriefcase,
 } from "react-icons/fa";
 import { Activity, ExternalLink, Loader2, Search, Send, Settings as SettingsIcon, X } from "lucide-react";
 import API from "../utils/axiosInstance";
 import Sentry from "../sentry";
 
 const menuItems = [
+  {
+    title: "Master Departemen",
+    icon: <FaBuilding size={40} />,
+    tone: "border-blue-200 text-blue-700 hover:bg-blue-50",
+    desc: "Kelola unit departemen untuk data pengguna.",
+    key: "master-departemen",
+  },
+  {
+    title: "Master Jabatan",
+    icon: <FaBriefcase size={40} />,
+    tone: "border-amber-200 text-amber-700 hover:bg-amber-50",
+    desc: "Kelola jabatan dan posisi kerja pengguna.",
+    key: "master-jabatan",
+  },
   {
     title: "Otoritas Menu Pengguna",
     icon: <FaUserLock size={40} />,

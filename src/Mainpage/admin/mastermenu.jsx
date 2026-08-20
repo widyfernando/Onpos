@@ -31,6 +31,8 @@ const iconMap = {
   "klasifikasi-pelanggan": ClipboardList,
   "master-satuan-barang": BriefcaseBusiness,
   "master-kategori-barang": FolderTree,
+  "master-departemen": Warehouse,
+  "master-jabatan": BriefcaseBusiness,
   "master-pelanggan": ClipboardList,
   "master-warehouse": Warehouse,
   "golongan-produk": ClipboardList,
@@ -51,6 +53,8 @@ const availableRoutes = new Set([
   "master-users",
   "master-satuan-barang",
   "master-kategori-barang",
+  "master-departemen",
+  "master-jabatan",
   "data-barang-umum",
   "master-barang",
 ]);

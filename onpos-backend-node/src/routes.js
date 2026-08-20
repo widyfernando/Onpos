@@ -47,7 +47,9 @@ function requiredPages(req) {
   if (path.startsWith('/inventory/items') && req.method === 'GET') return ['inventory', 'master-barang', 'stock-opname', 'transaksi-penjualan'];
   if (path.startsWith('/inventory/items')) return ['master-barang'];
   if (path.startsWith('/inventory')) return ['inventory'];
-  if (path.startsWith('/departemen') || path.startsWith('/detail_departemen') || path.startsWith('/jabatan') || path.startsWith('/detail_jabatan') || path.startsWith('/perusahaan')) return ['settings'];
+  if (path.startsWith('/departemen') || path.startsWith('/detail_departemen')) return ['master-departemen', 'master-users', 'pengaturan-pengguna'];
+  if (path.startsWith('/jabatan') || path.startsWith('/detail_jabatan')) return ['master-jabatan', 'master-users', 'pengaturan-pengguna'];
+  if (path.startsWith('/perusahaan')) return ['settings'];
   return [];
 }
 
