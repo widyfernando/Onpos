@@ -3,6 +3,7 @@ const { createProxyMiddleware } = require('http-proxy-middleware');
 const apiPaths = [
   '/health',
   '/dashboard',
+  '/monitoring',
   '/reports',
   '/backup',
   '/login',
