@@ -14,6 +14,9 @@ npm run dev
 
 Backend jalan di `http://localhost:5000`.
 
+Deployment production menggunakan konfigurasi Vercel di folder backend ini dan
+membaca koneksi Supabase dari `DATABASE_URL` atau variable `DB_*` terpisah.
+
 ## Endpoint yang sudah dimigrasi
 
 - `POST /login`
