@@ -21,3 +21,12 @@
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# local runtime output and archives
+*.log
+*.err
+*.zip
+
+# legacy/local working copies that are not part of the deployed app
+/onpos/
+/picture/

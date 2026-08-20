@@ -1,17 +1,21 @@
-import React from 'react';
-import ReactDOM from 'react-dom/client';
-import './index.css';
-import App from './App';
-import reportWebVitals from './reportWebVitals';
+import React from "react";
+import ReactDOM from "react-dom/client";
+import Sentry from "./sentry";
+import "./index.css";
+import App from "./App";
+import reportWebVitals from "./reportWebVitals";
+import "aos/dist/aos.css";
+import AOS from "aos";
 
-const root = ReactDOM.createRoot(document.getElementById('root'));
+AOS.init();
+
+const root = ReactDOM.createRoot(document.getElementById("root"));
 root.render(
   <React.StrictMode>
-    <App />
+    <Sentry.ErrorBoundary fallback={<div className="flex min-h-screen items-center justify-center bg-slate-50 p-6 text-center text-slate-700"><div><h1 className="text-xl font-bold">Terjadi kesalahan aplikasi</h1><p className="mt-2 text-sm">Muat ulang halaman atau hubungi administrator jika masalah berlanjut.</p></div></div>}>
+      <App />
+    </Sentry.ErrorBoundary>
   </React.StrictMode>
 );
 
-// If you want to start measuring performance in your app, pass a function
-// to log results (for example: reportWebVitals(console.log))
-// or send to an analytics endpoint. Learn more: https://bit.ly/CRA-vitals
 reportWebVitals();
