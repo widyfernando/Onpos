@@ -16,6 +16,8 @@ Jika Render meminta verifikasi kartu, backend Express dapat dijalankan sebagai p
 4. Tambahkan environment variable backend seperti pada bagian Render, tetapi gunakan Supabase **Transaction pooler** port `6543` dan set `DATABASE_POOL_MAX=1`.
 5. Deploy. File `onpos-backend-node/vercel.json` mengatur Express, region Singapore, migrasi, dan seed otomatis.
 
+Sebagai alternatif `DATABASE_URL`, Vercel dapat memakai `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, dan `DB_PASSWORD` secara terpisah. Cara ini menghindari kebutuhan URL-encode untuk password yang mengandung simbol.
+
 Frontend kemudian diimport sebagai project Vercel terpisah dengan Root Directory repository (`.`). Dengan susunan ini frontend dan backend memiliki URL berbeda, tetapi keduanya tetap auto-deploy dari repository GitHub yang sama.
 
 Tidak ada password, DSN, atau secret production yang disimpan di repository. Semua nilai rahasia harus dimasukkan lewat dashboard masing-masing layanan.

@@ -1,10 +1,19 @@
 const { Pool } = require('pg');
 
-const databaseUrl = process.env.DATABASE_URL || 'postgresql://postgres:password@localhost:5433/onpos';
 const useSsl = process.env.DATABASE_SSL === 'true';
 
+const connection = process.env.DATABASE_URL
+  ? { connectionString: process.env.DATABASE_URL }
+  : {
+      host: process.env.DB_HOST || 'localhost',
+      port: Number(process.env.DB_PORT || 5433),
+      database: process.env.DB_NAME || 'onpos',
+      user: process.env.DB_USER || 'postgres',
+      password: process.env.DB_PASSWORD || 'password',
+    };
+
 const pool = new Pool({
-  connectionString: databaseUrl,
+  ...connection,
   ssl: useSsl ? { rejectUnauthorized: true } : undefined,
   max: Number(process.env.DATABASE_POOL_MAX || 10),
   idleTimeoutMillis: Number(process.env.DATABASE_IDLE_TIMEOUT_MS || 30000),
