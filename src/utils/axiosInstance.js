@@ -23,8 +23,13 @@ const showAccessAlert = async (title, text, icon = 'warning', options = {}) => {
   }
 };
 
+const apiBaseUrl = (process.env.REACT_APP_API_URL || '')
+  .trim()
+  .replace(/\/+$/, '')
+  .replace(/\/login$/i, '');
+
 const API = axios.create({
-  baseURL: process.env.REACT_APP_API_URL || '',
+  baseURL: apiBaseUrl,
   timeout: 15000,
   headers: {
     'Content-Type': 'application/json',
