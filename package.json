@@ -6,6 +6,7 @@
     "@sentry/react": "^10.70.0",
     "@testing-library/jest-dom": "^5.17.0",
     "@testing-library/react": "^13.4.0",
+    "@vercel/speed-insights": "^2.0.0",
     "aos": "^2.3.4",
     "axios": "^1.13.2",
     "framer-motion": "^12.23.22",
