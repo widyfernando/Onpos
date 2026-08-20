@@ -12,9 +12,13 @@ async function migrate() {
   console.log('Migrasi database selesai.');
 }
 
-migrate()
-  .catch((error) => {
-    console.error('Migrasi database gagal:', error);
-    process.exitCode = 1;
-  })
-  .finally(() => pool.end());
+if (require.main === module) {
+  migrate()
+    .catch((error) => {
+      console.error('Migrasi database gagal:', error);
+      process.exitCode = 1;
+    })
+    .finally(() => pool.end());
+}
+
+module.exports = { migrate };

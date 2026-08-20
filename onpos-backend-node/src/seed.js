@@ -102,10 +102,14 @@ async function seed() {
   });
 }
 
-seed()
-  .then(() => console.log('Seeder selesai. Admin: admin123 / admin123'))
-  .catch((error) => {
-    console.error(error);
-    process.exitCode = 1;
-  })
-  .finally(() => pool.end());
+if (require.main === module) {
+  seed()
+    .then(() => console.log('Seeder selesai. Admin: admin123 / admin123'))
+    .catch((error) => {
+      console.error(error);
+      process.exitCode = 1;
+    })
+    .finally(() => pool.end());
+}
+
+module.exports = { seed };

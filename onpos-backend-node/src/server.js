@@ -7,6 +7,8 @@ const helmet = require('helmet');
 const { rateLimit } = require('express-rate-limit');
 const routes = require('./routes');
 const { pool, ensureSchema } = require('./db');
+const { migrate } = require('./migrate');
+const { seed } = require('./seed');
 
 const app = express();
 const port = Number(process.env.PORT || 5000);
@@ -80,14 +82,17 @@ app.use((error, _req, res, _next) => {
 
 let server;
 
-ensureSchema()
+Promise.resolve()
+  .then(() => migrate())
+  .then(() => seed())
+  .then(() => ensureSchema())
   .then(() => {
     server = app.listen(port, '0.0.0.0', () => {
       console.log(`ONPOS Node backend running on http://localhost:${port}`);
     });
   })
   .catch((error) => {
-    console.error('Failed to ensure database schema', error);
+    console.error('Failed to bootstrap database', error);
     process.exit(1);
   });
 
