@@ -1,4 +1,5 @@
 const { Pool } = require('pg');
+const modalInventory = require('./data/modalInventory.json');
 
 const useSsl = process.env.DATABASE_SSL === 'true';
 const databaseHost = process.env.DB_HOST || '';
@@ -60,6 +61,7 @@ async function ensureSchema() {
   await query("ALTER TABLE sales_orders ADD COLUMN IF NOT EXISTS cancelled_at TIMESTAMPTZ");
   await query("ALTER TABLE sales_orders ADD COLUMN IF NOT EXISTS cancelled_by VARCHAR(100)");
   await query("ALTER TABLE sales_orders ADD COLUMN IF NOT EXISTS cancel_reason TEXT");
+  await importProductionModalInventory();
   const menus = [
     ['M00001', 'Administration', '', 'M00001'],
     ['M00002', 'Dashboard', 'dashboard', 'M00002'],
@@ -106,6 +108,69 @@ async function ensureSchema() {
       WHERE menu_id <> ALL($1::varchar[])`,
     [activeMenuIds]
   );
+}
+
+async function importProductionModalInventory() {
+  if (process.env.NODE_ENV !== 'production') return;
+
+  const migrationId = '20260823_modal_inventory_v1';
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query('SELECT pg_advisory_xact_lock($1)', [20260823]);
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS app_data_migrations (
+        migration_id VARCHAR(100) PRIMARY KEY,
+        applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+    const applied = await client.query(
+      'SELECT 1 FROM app_data_migrations WHERE migration_id = $1',
+      [migrationId]
+    );
+    if (applied.rowCount > 0) {
+      await client.query('COMMIT');
+      return;
+    }
+
+    await client.query('DELETE FROM sales_order_items');
+    await client.query('DELETE FROM sales_orders');
+    await client.query('DELETE FROM inventory_price_history');
+    await client.query('DELETE FROM inventory_transactions');
+    await client.query('DELETE FROM inventory_items');
+
+    const unit = await client.query("SELECT 1 FROM satuan_barang WHERE satuan_id = 'S00001'");
+    if (unit.rowCount === 0) {
+      await client.query(
+        "INSERT INTO satuan_barang (satuan_id, nama, keterangan) VALUES ('S00001', 'PCS', 'Pieces / satuan unit')"
+      );
+    }
+
+    for (let offset = 0; offset < modalInventory.length; offset += 100) {
+      const batch = modalInventory.slice(offset, offset + 100);
+      const values = [];
+      const placeholders = batch.map((item, index) => {
+        const base = index * 4;
+        values.push(item.item_id, item.nama, item.harga_modal, item.harga);
+        return `($${base + 1}, $${base + 2}, 'S00001', NULL, '', 0, $${base + 3}, $${base + 4}, 5, true)`;
+      });
+      await client.query(
+        `INSERT INTO inventory_items
+          (item_id, nama, satuan_id, kategori_id, locator, stok, harga_modal, harga, minimum_stock, is_aktif)
+         VALUES ${placeholders.join(', ')}`,
+        values
+      );
+    }
+
+    await client.query('INSERT INTO app_data_migrations (migration_id) VALUES ($1)', [migrationId]);
+    await client.query('COMMIT');
+    console.log(`Production modal inventory imported: ${modalInventory.length} items`);
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 module.exports = { pool, query, withTransaction, ensureSchema };
