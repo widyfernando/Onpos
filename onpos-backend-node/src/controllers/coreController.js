@@ -597,7 +597,7 @@ const deleteKategoriBarang = asyncHandler(async (req, res) => {
 
 const getInventoryItems = asyncHandler(async (req, res) => {
   const search = String(req.query.search || '').trim();
-  const limit = Math.min(Math.max(Number(req.query.limit || 120), 1), 300);
+  const limit = Math.min(Math.max(Number(req.query.limit || 1000), 1), 1000);
   const params = [];
   let whereSql = 'WHERE i.is_aktif = true';
   let orderSql = 'ORDER BY i.created_at DESC, i.item_id DESC';
