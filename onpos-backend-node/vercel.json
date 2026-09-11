@@ -3,5 +3,5 @@
   "framework": "express",
   "buildCommand": null,
   "outputDirectory": null,
-  "regions": ["sin1"]
+  "regions": ["iad1"]
 }

@@ -88,10 +88,13 @@ app.use((error, _req, res, _next) => {
 
 let server;
 
-const databaseReady = Promise.resolve()
-  .then(() => migrate())
-  .then(() => seed())
-  .then(() => ensureSchema());
+const shouldBootstrapDatabase = !process.env.VERCEL || process.env.RUN_DB_BOOTSTRAP === 'true';
+const databaseReady = shouldBootstrapDatabase
+  ? Promise.resolve()
+    .then(() => migrate())
+    .then(() => seed())
+    .then(() => ensureSchema())
+  : Promise.resolve();
 
 if (process.env.VERCEL) {
   module.exports = async function handler(req, res) {
