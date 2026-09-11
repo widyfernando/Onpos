@@ -12,8 +12,14 @@ const { seed } = require('./seed');
 
 const app = express();
 const port = Number(process.env.PORT || 5000);
-const origins = (process.env.CORS_ORIGINS || 'http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001')
-  .split(',')
+const defaultOrigins = [
+  'http://localhost:3000',
+  'http://127.0.0.1:3000',
+  'http://localhost:3001',
+  'http://127.0.0.1:3001',
+  'https://bikestore-pos.vercel.app',
+];
+const origins = [...defaultOrigins, ...(process.env.CORS_ORIGINS || '').split(',')]
   .map((origin) => origin.trim())
   .filter(Boolean);
 
@@ -82,30 +88,39 @@ app.use((error, _req, res, _next) => {
 
 let server;
 
-Promise.resolve()
+const databaseReady = Promise.resolve()
   .then(() => migrate())
   .then(() => seed())
-  .then(() => ensureSchema())
-  .then(() => {
-    server = app.listen(port, '0.0.0.0', () => {
-      console.log(`ONPOS Node backend running on http://localhost:${port}`);
+  .then(() => ensureSchema());
+
+if (process.env.VERCEL) {
+  module.exports = async function handler(req, res) {
+    await databaseReady;
+    return app(req, res);
+  };
+} else {
+  databaseReady
+    .then(() => {
+      server = app.listen(port, '0.0.0.0', () => {
+        console.log('ONPOS Node backend running on http://localhost:' + port);
+      });
+    })
+    .catch((error) => {
+      console.error('Failed to bootstrap database', error);
+      process.exit(1);
     });
-  })
-  .catch((error) => {
-    console.error('Failed to bootstrap database', error);
-    process.exit(1);
-  });
 
-function shutdown() {
-  if (!server) {
-    pool.end().finally(() => process.exit(0));
-    return;
+  function shutdown() {
+    if (!server) {
+      pool.end().finally(() => process.exit(0));
+      return;
+    }
+    server.close(async () => {
+      await pool.end();
+      process.exit(0);
+    });
   }
-  server.close(async () => {
-    await pool.end();
-    process.exit(0);
-  });
-}
 
-process.on('SIGINT', shutdown);
-process.on('SIGTERM', shutdown);
+  process.on('SIGINT', shutdown);
+  process.on('SIGTERM', shutdown);
+}

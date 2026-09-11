@@ -1,9 +1,17 @@
 const { Pool } = require('pg');
 const modalInventory = require('./data/modalInventory.json');
 
-const useSsl = process.env.DATABASE_SSL === 'true';
-const databaseHost = process.env.DB_HOST || '';
+const connectionString = process.env.DATABASE_URL || process.env.POSTGRES_URL || '';
+let connectionHost = '';
+try {
+  connectionHost = connectionString ? new URL(connectionString).hostname : '';
+} catch (_error) {
+  connectionHost = '';
+}
+const databaseHost = process.env.DB_HOST || connectionHost;
+const isSupabaseHost = databaseHost.endsWith('.supabase.com');
 const isSupabaseSharedPooler = databaseHost.endsWith('.pooler.supabase.com');
+const useSsl = process.env.DATABASE_SSL === 'true' || isSupabaseHost;
 const supabaseProjectRef = process.env.SUPABASE_PROJECT_REF || 'hduchdouvqupvsluqnzf';
 const databaseUser = isSupabaseSharedPooler
   ? `postgres.${supabaseProjectRef}`
@@ -12,8 +20,18 @@ const rejectUnauthorized = process.env.DATABASE_SSL_REJECT_UNAUTHORIZED
   ? process.env.DATABASE_SSL_REJECT_UNAUTHORIZED !== 'false'
   : !isSupabaseSharedPooler;
 
-const connection = process.env.DATABASE_URL
-  ? { connectionString: process.env.DATABASE_URL }
+let normalizedConnectionString = connectionString;
+if (connectionString && useSsl) {
+  const url = new URL(connectionString);
+  url.searchParams.delete('sslmode');
+  url.searchParams.delete('sslcert');
+  url.searchParams.delete('sslkey');
+  url.searchParams.delete('sslrootcert');
+  normalizedConnectionString = url.toString();
+}
+
+const connection = normalizedConnectionString
+  ? { connectionString: normalizedConnectionString }
   : {
       host: process.env.DB_HOST || 'localhost',
       port: Number(process.env.DB_PORT || 5433),
