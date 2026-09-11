@@ -12,7 +12,7 @@ const databaseHost = process.env.DB_HOST || connectionHost;
 const isSupabaseHost = databaseHost.endsWith('.supabase.com');
 const isSupabaseSharedPooler = databaseHost.endsWith('.pooler.supabase.com');
 const useSsl = process.env.DATABASE_SSL === 'true' || isSupabaseHost;
-const supabaseProjectRef = process.env.SUPABASE_PROJECT_REF || 'hduchdouvqupvsluqnzf';
+const supabaseProjectRef = process.env.SUPABASE_PROJECT_REF || '';
 const databaseUser = isSupabaseSharedPooler
   ? `postgres.${supabaseProjectRef}`
   : (process.env.DB_USER || 'postgres');
