@@ -1,3 +1,65 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+html {
+  min-height: 100%;
+  background: #f8fafc;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  min-height: 100%;
+  margin: 0;
+  overscroll-behavior-y: none;
+  background: #f8fafc;
+}
+
+button,
+a,
+input,
+select,
+textarea {
+  touch-action: manipulation;
+}
+
+@media (max-width: 767px) {
+  .app-shell {
+    background-image: none !important;
+  }
+
+  .app-header {
+    padding-top: env(safe-area-inset-top);
+  }
+
+  .app-content > main,
+  .app-content > div > main {
+    min-height: calc(100dvh - 8rem);
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .app-content table {
+    font-size: 0.8125rem;
+  }
+
+  .app-content input,
+  .app-content select,
+  .app-content textarea {
+    font-size: 16px;
+  }
+
+  @media (display-mode: standalone) {
+    .app-shell {
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    .app-content input,
+    .app-content textarea {
+      user-select: text;
+      -webkit-user-select: text;
+    }
+  }
+}

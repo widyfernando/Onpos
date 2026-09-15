@@ -21,3 +21,12 @@ root.render(
 );
 
 reportWebVitals();
+
+// Register the production service worker so the Vercel application can be installed.
+if (process.env.NODE_ENV === "production" && "serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/service-worker.js").catch((error) => {
+      console.error("PWA service worker registration failed:", error);
+    });
+  });
+}

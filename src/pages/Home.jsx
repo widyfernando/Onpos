@@ -22,7 +22,7 @@ import { getStoredUser } from "../utils/authStorage";
 import API from "../utils/axiosInstance";
 
 // Import ikon (sebelumnya di Header.jsx)
-import { FaTachometerAlt, FaCog, FaUsers, FaBars, FaTimes, FaSignOutAlt, FaThLarge, FaBoxes, FaClipboardCheck, FaShoppingCart, FaFileAlt } from "react-icons/fa";
+import { FaTachometerAlt, FaCog, FaUsers, FaTimes, FaSignOutAlt, FaThLarge, FaBoxes, FaClipboardCheck, FaShoppingCart, FaFileAlt } from "react-icons/fa";
 import { BiStore } from "react-icons/bi";
 
 // Perhatikan: kita tambahkan prop 'user' di sini
@@ -34,7 +34,6 @@ const Home = ({ onLogout, user = {} }) => {
   const [activePage, setActivePage] = useState("dashboard"); // default halaman
 
   // State yang dipindahkan dari Header.jsx
-  const [menuOpen, setMenuOpen] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [allowedPages, setAllowedPages] = useState(new Set(["dashboard"]));
   const dropdownRef = useRef(null);
@@ -90,7 +89,6 @@ const Home = ({ onLogout, user = {} }) => {
 
   const exitLockedPage = () => {
     setActivePage("dashboard");
-    setMenuOpen(false);
   };
 
   // Render halaman berdasarkan state activePage (dari Home)
@@ -169,7 +167,7 @@ const Home = ({ onLogout, user = {} }) => {
 
   return (
     <div
-      className="relative min-h-screen bg-white bg-cover bg-center bg-fixed bg-no-repeat"
+      className="app-shell relative min-h-[100dvh] bg-slate-50 bg-cover bg-center bg-fixed bg-no-repeat"
       style={{ backgroundImage: "url('/bike-tools-light-background.png')" }}
     >
       <div className="pointer-events-none fixed inset-0 bg-white/25" />
@@ -177,16 +175,16 @@ const Home = ({ onLogout, user = {} }) => {
       <div className="pointer-events-none fixed -right-32 bottom-10 h-80 w-80 rounded-full bg-cyan-100/35 blur-3xl" />
 
       {/* === SEMUA JSX DARI HEADER.JSX DIPINDAHKAN KE SINI === */}
-      <header className="fixed left-0 right-0 top-0 z-50 border-b border-white/70 bg-white/82 shadow-[0_8px_30px_-18px_rgba(15,23,42,0.45)] backdrop-blur-2xl">
-        <div className="mx-auto flex max-w-[1600px] items-center justify-between px-4 py-2.5 sm:px-6">
+      <header className="app-header fixed left-0 right-0 top-0 z-50 border-b border-slate-200/80 bg-white/95 shadow-sm backdrop-blur-2xl">
+        <div className="mx-auto flex max-w-[1600px] items-center justify-between px-4 py-2 sm:px-6 md:py-2.5">
 
           {/* 1. Logo (Sekarang ada di Home.jsx) */}
           <div className="flex items-center gap-3">
-            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-cyan-500 text-white shadow-lg shadow-blue-500/20">
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-cyan-500 text-white shadow-lg shadow-blue-500/20 md:h-10 md:w-10">
               <BiStore className="text-xl" />
             </span>
             <div>
-              <span className="block text-base font-extrabold tracking-tight text-slate-900">BikeStore</span>
+              <span className="block text-sm font-extrabold tracking-tight text-slate-900 md:text-base">BikeStore</span>
               <span className="hidden text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400 sm:block">ERP System</span>
             </div>
           </div>
@@ -262,78 +260,42 @@ const Home = ({ onLogout, user = {} }) => {
                 </button>
               </div>
             )}
-
-            {/* Mobile toggle */}
-            <button
-              className="md:hidden text-gray-600 text-xl"
-              onClick={() => setMenuOpen(!menuOpen)}
-            >
-              {menuOpen ? <FaTimes /> : <FaBars />}
-            </button>
           </div>
         </div>
-
-        {/* Mobile Menu */}
-        {menuOpen && (
-          <nav className="md:hidden bg-white border-t shadow-md">
-            <ul className="flex flex-col p-4 space-y-2">
-              {menuItems.map((item, idx) => (
-                <li key={idx}>
-                  {(() => {
-                    const isInventoryFlow = inventoryFlowPages.includes(activePage) && inventoryFlowPages.includes(item.key);
-                    const isActive = activePage === item.key || (item.key === "inventory" && inventoryFlowPages.includes(activePage));
-                    const isDisabled = isLocked && activePage !== item.key && !isInventoryFlow;
-
-                    return (
-                  <button
-                    disabled={isDisabled}
-                    className={`flex items-center space-x-2 p-2 rounded-md w-full ${isActive
-                      ? "bg-blue-100 text-blue-600 font-semibold"
-                      : isDisabled
-                        ? "opacity-40 cursor-not-allowed text-gray-400"
-                      : "text-gray-600 hover:bg-blue-50 hover:text-blue-600"
-                      }`}
-                    onClick={() => {
-                      if (isDisabled) return;
-                      setActivePage(item.key);
-                      setMenuOpen(false);
-                    }} // Menggunakan 'setActivePage'
-                  >
-                    {item.icon}
-                    <span>{item.label}</span>
-                  </button>
-                    );
-                  })()}
-                </li>
-              ))}
-              {isLocked && (
-                <li>
-                  <button
-                    onClick={exitLockedPage}
-                    className="flex w-full items-center space-x-2 rounded-md p-2 text-red-600 hover:bg-red-50"
-                  >
-                    <FaTimes />
-                    <span>Exit / Buka Header</span>
-                  </button>
-                </li>
-              )}
-              <li>
-                <button
-                  onClick={onLogout} // Menggunakan prop 'onLogout'
-                  className="flex items-center space-x-2 p-2 rounded-md text-red-600 hover:bg-red-50 w-full"
-                >
-                  <FaSignOutAlt />
-                  <span>Logout</span>
-                </button>
-              </li>
-            </ul>
-          </nav>
-        )}
       </header>
+      <nav className="app-bottom-nav fixed inset-x-0 bottom-0 z-50 border-t border-slate-200/90 bg-white/95 px-2 pb-[max(0.45rem,env(safe-area-inset-bottom))] pt-1.5 shadow-[0_-8px_30px_-18px_rgba(15,23,42,0.35)] backdrop-blur-2xl md:hidden" aria-label="Navigasi utama">
+        <div className="mx-auto grid max-w-lg grid-flow-col auto-cols-fr">
+          {menuItems.map((item) => {
+            const isInventoryFlow = inventoryFlowPages.includes(activePage) && inventoryFlowPages.includes(item.key);
+            const isActive = activePage === item.key || (item.key === "inventory" && inventoryFlowPages.includes(activePage));
+            const isDisabled = isLocked && activePage !== item.key && !isInventoryFlow;
+            return (
+              <button
+                key={item.key}
+                type="button"
+                disabled={isDisabled}
+                onClick={() => !isDisabled && setActivePage(item.key)}
+                className={`relative flex min-h-14 flex-col items-center justify-center gap-1 rounded-xl px-1 text-[10px] font-semibold transition active:scale-95 ${
+                  isDisabled
+                    ? "text-slate-300"
+                    : isActive
+                      ? "bg-blue-50 text-blue-700"
+                      : "text-slate-500"
+                }`}
+                aria-current={isActive ? "page" : undefined}
+              >
+                <span className="text-lg">{item.icon}</span>
+                <span className="max-w-full truncate">{item.label}</span>
+                {isActive && <span className="absolute inset-x-5 top-0 h-0.5 rounded-full bg-blue-600" />}
+              </button>
+            );
+          })}
+        </div>
+      </nav>
       {/* === AKHIR DARI JSX HEADER === */}
 
       {/* Render halaman aktif */}
-      <div className="relative mx-auto mt-16 max-w-[1600px] p-3 sm:p-5">{renderPage()}</div>
+      <div className="app-content relative mx-auto max-w-[1600px] px-0 pb-24 pt-[3.55rem] sm:px-5 md:pb-5 md:pt-16">{renderPage()}</div>
     </div>
   );
 };

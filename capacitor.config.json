@@ -1,0 +1,13 @@
+{
+  "appId": "com.bikestore.pos",
+  "appName": "BikeStore POS",
+  "webDir": "build",
+  "server": {
+    "url": "https://bikestore-pos.vercel.app/",
+    "androidScheme": "https",
+    "cleartext": false
+  },
+  "android": {
+    "allowMixedContent": false
+  }
+}
