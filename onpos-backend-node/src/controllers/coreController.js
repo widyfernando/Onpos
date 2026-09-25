@@ -600,7 +600,7 @@ const getInventoryItems = asyncHandler(async (req, res) => {
   const stockStatus = String(req.query.stock_status || 'all').trim();
   const sort = String(req.query.sort || 'created').trim();
   const page = Math.max(Number.parseInt(req.query.page, 10) || 1, 1);
-  const limit = Math.min(Math.max(Number.parseInt(req.query.limit, 10) || 25, 10), 100);
+  const limit = Math.min(Math.max(Number.parseInt(req.query.limit, 10) || 10, 10), 100);
   const offset = (page - 1) * limit;
   const params = [];
   const conditions = ['i.is_aktif = true'];

@@ -141,7 +141,7 @@ const Inventory = () => {
   const [bulkFileName, setBulkFileName] = useState("");
   const [bulkRows, setBulkRows] = useState([]);
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(25);
+  const pageSize = 10;
   const [totalItems, setTotalItems] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [summary, setSummary] = useState({ total_items: 0, total_stok: 0, total_nilai: 0, stok_rendah: 0, stok_kosong: 0 });
@@ -471,7 +471,7 @@ const Inventory = () => {
                 <h2 className="text-lg font-bold text-slate-950">Daftar Inventory</h2>
                 <p className="mt-1 text-sm text-slate-500">Menampilkan {firstItem}-{lastItem} dari {formatNumber(totalItems)} barang.</p>
               </div>
-              <div className="grid w-full grid-cols-1 gap-2 sm:w-auto sm:grid-cols-[160px_170px_110px_280px]">
+              <div className="grid w-full grid-cols-1 gap-2 sm:w-auto sm:grid-cols-[180px_180px_320px]">
                 <select value={stockFilter} onChange={(event) => { setStockFilter(event.target.value); setPage(1); }} className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100">
                   <option value="all">Semua Status</option>
                   <option value="low">Mau Habis</option>
@@ -486,12 +486,7 @@ const Inventory = () => {
                   <option value="name">Nama A-Z</option>
                   <option value="locator">Locator A-Z</option>
                 </select>
-                <select value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value)); setPage(1); }} className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100">
-                  <option value="10">10 / halaman</option>
-                  <option value="25">25 / halaman</option>
-                  <option value="50">50 / halaman</option>
-                  <option value="100">100 / halaman</option>
-                </select>
+
                 <div className="relative">
                   <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={17} />
                   <input
