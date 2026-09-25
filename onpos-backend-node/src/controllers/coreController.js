@@ -802,77 +802,176 @@ const addBulkInventoryIncoming = asyncHandler(async (req, res) => {
   if (!rows.length) return res.status(400).json({ status: 0, message: 'Data upload kosong' });
   if (rows.length > 3000) return res.status(400).json({ status: 0, message: 'Maksimal 3.000 baris per upload' });
 
-  const result = { processed: 0, skipped: 0, total_qty: 0, errors: [] };
+  const result = { processed: 0, created: 0, updated: 0, skipped: 0, total_qty: 0, errors: [] };
   await withTransaction(async (client) => {
+    const [itemsResult, categoriesResult, unitsResult] = await Promise.all([
+      client.query('SELECT item_id, nama, stok, harga_modal FROM inventory_items WHERE is_aktif = true FOR UPDATE'),
+      client.query('SELECT kategori_id, nama FROM kategori_barang WHERE is_aktif = true'),
+      client.query('SELECT satuan_id, nama FROM satuan_barang WHERE is_aktif = true'),
+    ]);
+    const nomorResult = await client.query("SELECT nomor FROM penomoran WHERE kategori = 'barang' FOR UPDATE");
+    let nextNumber = Number(nomorResult.rows[0]?.nomor || 1);
+    if (!nomorResult.rows[0]) {
+      await client.query("INSERT INTO penomoran (kategori, nomor) VALUES ('barang', $1)", [nextNumber]);
+    }
+
+    const normalize = (value) => String(value || '').trim().toLowerCase();
+    const byId = new Map(itemsResult.rows.map((item) => [normalize(item.item_id), item]));
+    const byName = new Map();
+    itemsResult.rows.forEach((item) => {
+      const key = normalize(item.nama);
+      const matches = byName.get(key) || [];
+      matches.push(item);
+      byName.set(key, matches);
+    });
+    const categories = new Map(categoriesResult.rows.map((row) => [normalize(row.nama), row.kategori_id]));
+    const units = new Map(unitsResult.rows.map((row) => [normalize(row.nama), row.satuan_id]));
+    const usedIds = new Set(itemsResult.rows.map((item) => normalize(item.item_id)));
+    const newItems = [];
+    const changedItems = new Map();
+    const transactions = [];
+
+    const generatedId = () => {
+      let id;
+      do {
+        id = nextId('I', nextNumber);
+        nextNumber += 1;
+      } while (usedIds.has(normalize(id)));
+      usedIds.add(normalize(id));
+      return id;
+    };
+
     for (let index = 0; index < rows.length; index += 1) {
       const source = rows[index] || {};
       const sku = String(source.sku || '').trim();
-      const nama = String(source.nama || '').trim();
+      const namaAsli = String(source.nama || '').trim();
+      const nama = namaAsli.slice(0, 80);
       const qty = Number(source.qty);
-      const harga = source.harga === '' || source.harga === null || source.harga === undefined ? null : Number(source.harga);
+      const harga = source.harga === '' || source.harga === null || source.harga === undefined ? 0 : Number(source.harga);
       const rowNumber = Number(source.row_number) || index + 2;
 
-      if (!Number.isFinite(qty) || qty <= 0) {
+      if (!namaAsli) {
         result.skipped += 1;
-        result.errors.push({ row: rowNumber, sku, nama, message: 'Stok Terkini harus lebih dari 0' });
+        result.errors.push({ row: rowNumber, sku, nama, message: 'Nama Produk wajib diisi' });
         continue;
       }
-      if (harga !== null && (!Number.isFinite(harga) || harga < 0)) {
+      if (!Number.isFinite(qty) || qty < 0) {
+        result.skipped += 1;
+        result.errors.push({ row: rowNumber, sku, nama, message: 'Stok Terkini tidak valid' });
+        continue;
+      }
+      if (!Number.isFinite(harga) || harga < 0) {
         result.skipped += 1;
         result.errors.push({ row: rowNumber, sku, nama, message: 'HPP tidak valid' });
         continue;
       }
 
-      let item;
-      if (sku && sku !== '-') {
-        const bySku = await client.query(
-          'SELECT item_id, nama, stok, harga_modal FROM inventory_items WHERE LOWER(item_id) = LOWER($1) AND is_aktif = true FOR UPDATE',
-          [sku]
-        );
-        item = bySku.rows[0];
-      }
-      if (!item && nama) {
-        const byName = await client.query(
-          'SELECT item_id, nama, stok, harga_modal FROM inventory_items WHERE LOWER(TRIM(nama)) = LOWER(TRIM($1)) AND is_aktif = true ORDER BY item_id LIMIT 2 FOR UPDATE',
-          [nama]
-        );
-        if (byName.rowCount === 1) item = byName.rows[0];
-        else if (byName.rowCount > 1) {
-          result.skipped += 1;
-          result.errors.push({ row: rowNumber, sku, nama, message: 'Nama produk ditemukan lebih dari satu; gunakan SKU yang valid' });
-          continue;
-        }
-      }
+      let item = null;
+      const skuMatch = sku && sku !== '-' ? byId.get(normalize(sku)) : null;
+      if (skuMatch && normalize(skuMatch.nama) === normalize(nama)) item = skuMatch;
       if (!item) {
-        result.skipped += 1;
-        result.errors.push({ row: rowNumber, sku, nama, message: 'Barang tidak ditemukan di Master Barang' });
-        continue;
+        const nameMatches = byName.get(normalize(nama)) || [];
+        if (nameMatches.length === 1) item = nameMatches[0];
+      }
+
+      if (!item) {
+        const canUseSku = sku && sku !== '-' && sku.length <= 10 && !usedIds.has(normalize(sku));
+        const itemId = canUseSku ? sku : generatedId();
+        usedIds.add(normalize(itemId));
+        const locator = [source.gudang, source.rak].map((value) => String(value || '').trim()).filter(Boolean).join(' / ').slice(0, 80);
+        item = {
+          item_id: itemId,
+          nama,
+          stok: 0,
+          harga_modal: harga,
+          kategori_id: categories.get(normalize(source.kategori)) || null,
+          satuan_id: units.get(normalize(source.satuan)) || null,
+          locator,
+          minimum_stock: Number.isFinite(Number(source.minimum_stock)) ? Math.max(0, Number(source.minimum_stock)) : 5,
+          isNew: true,
+        };
+        newItems.push(item);
+        byId.set(normalize(itemId), item);
+        const matches = byName.get(normalize(nama)) || [];
+        matches.push(item);
+        byName.set(normalize(nama), matches);
+        result.created += 1;
+      } else if (!item.isNew) {
+        result.updated += 1;
       }
 
       const stokSebelum = Number(item.stok || 0);
       const stokSesudah = stokSebelum + qty;
+      item.stok = stokSesudah;
+      item.harga_modal = harga;
+      changedItems.set(item.item_id, item);
+      if (qty > 0) {
+        transactions.push({
+          item_id: item.item_id,
+          qty,
+          harga,
+          stok_sebelum: stokSebelum,
+          stok_sesudah: stokSesudah,
+          catatan: `${catatan} (baris ${rowNumber})`,
+        });
+        result.total_qty += qty;
+      }
+      result.processed += 1;
+    }
+
+    if (newItems.length) {
+      await client.query(
+        `INSERT INTO inventory_items
+          (item_id, nama, satuan_id, kategori_id, locator, stok, harga_modal, harga, minimum_stock, is_aktif)
+         SELECT x.item_id, x.nama, x.satuan_id, x.kategori_id, x.locator, x.stok, x.harga_modal, 0, x.minimum_stock, true
+         FROM jsonb_to_recordset($1::jsonb) AS x(
+           item_id varchar, nama varchar, satuan_id varchar, kategori_id varchar, locator varchar,
+           stok numeric, harga_modal numeric, minimum_stock numeric
+         )`,
+        [JSON.stringify(newItems)]
+      );
+    }
+
+    const existingChanges = [...changedItems.values()].filter((item) => !item.isNew);
+    if (existingChanges.length) {
+      await client.query(
+        `UPDATE inventory_items AS i
+            SET stok = x.stok, harga_modal = x.harga_modal, updated_at = NOW()
+           FROM jsonb_to_recordset($1::jsonb) AS x(item_id varchar, stok numeric, harga_modal numeric)
+          WHERE i.item_id = x.item_id`,
+        [JSON.stringify(existingChanges)]
+      );
+    }
+
+    if (transactions.length) {
       await client.query(
         `INSERT INTO inventory_transactions (item_id, tipe, qty, harga, stok_sebelum, stok_sesudah, catatan)
-         VALUES ($1, 'MASUK', $2, $3, $4, $5, $6)`,
-        [item.item_id, qty, harga, stokSebelum, stokSesudah, `${catatan} (baris ${rowNumber})`]
+         SELECT x.item_id, 'MASUK', x.qty, x.harga, x.stok_sebelum, x.stok_sesudah, x.catatan
+         FROM jsonb_to_recordset($1::jsonb) AS x(
+           item_id varchar, qty numeric, harga numeric, stok_sebelum numeric, stok_sesudah numeric, catatan text
+         )`,
+        [JSON.stringify(transactions)]
       );
-      await client.query(
-        'UPDATE inventory_items SET stok = $1, harga_modal = COALESCE($2, harga_modal), updated_at = NOW() WHERE item_id = $3',
-        [stokSesudah, harga, item.item_id]
-      );
-      await addLog(client, actorName(req), item.item_id, 'INVENTORY', `Upload MASUK barang ${item.item_id} qty ${qty}`);
-      result.processed += 1;
-      result.total_qty += qty;
     }
+
+    if (nextNumber !== Number(nomorResult.rows[0]?.nomor || 1)) {
+      await client.query("UPDATE penomoran SET nomor = $1, updated_at = NOW() WHERE kategori = 'barang'", [nextNumber]);
+    }
+    await addLog(
+      client,
+      actorName(req),
+      'BULK-INCOMING',
+      'INVENTORY',
+      `Upload barang masuk: ${result.processed} baris, ${result.created} barang baru, qty ${result.total_qty}`
+    );
   });
 
   return res.json({
     status: result.processed > 0 ? 1 : 2,
-    message: `${result.processed} baris berhasil diproses, ${result.skipped} baris dilewati`,
+    message: `${result.processed} baris diproses, ${result.created} barang baru, ${result.skipped} dilewati`,
     ...result,
   });
 });
-
 const addStockOpname = asyncHandler(async (req, res) => {
   const data = req.body || {};
   const itemId = data.item_id;

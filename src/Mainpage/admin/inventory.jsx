@@ -322,6 +322,11 @@ const Inventory = () => {
         nama: row[column("Nama Produk")] || "",
         harga: csvNumber(row[column("HPP")]),
         qty: csvNumber(row[column("Stok Terkini")]),
+        kategori: column("Kategori") >= 0 ? row[column("Kategori")] || "" : "",
+        minimum_stock: column("Stok Minimum") >= 0 ? csvNumber(row[column("Stok Minimum")]) : "",
+        satuan: column("Satuan") >= 0 ? row[column("Satuan")] || "" : "",
+        gudang: column("Gudang") >= 0 ? row[column("Gudang")] || "" : "",
+        rak: column("Rak") >= 0 ? row[column("Rak")] || "" : "",
       })).filter((row) => row.sku || row.nama);
 
       if (!parsed.length) throw new Error("File tidak memiliki baris data.");
@@ -337,11 +342,11 @@ const Inventory = () => {
 
   const uploadIncoming = async () => {
     if (!bulkRows.length) return;
-    const validRows = bulkRows.filter((row) => Number.isFinite(row.qty) && row.qty > 0);
+    const validRows = bulkRows.filter((row) => Number.isFinite(row.qty) && row.qty >= 0);
     const confirmation = await Swal.fire({
       icon: "question",
       title: "Proses barang masuk?",
-      text: `${validRows.length} dari ${bulkRows.length} baris memiliki Stok Terkini lebih dari 0. Stok tersebut akan ditambahkan ke stok saat ini.`,
+      text: `${validRows.length} dari ${bulkRows.length} baris valid akan diproses. Barang yang belum ada akan dibuat, dan Stok Terkini akan ditambahkan ke stok saat ini.`,
       showCancelButton: true,
       confirmButtonText: "Proses Upload",
       cancelButtonText: "Batal",
@@ -361,7 +366,7 @@ const Inventory = () => {
       await Swal.fire({
         icon: data.processed > 0 ? "success" : "warning",
         title: "Upload selesai",
-        html: `<p>${data.processed || 0} baris berhasil, ${data.skipped || 0} dilewati. Total qty masuk: ${formatNumber(data.total_qty)}.</p>${errorHtml ? `<ul style="margin-top:12px;text-align:left;font-size:12px;max-height:180px;overflow:auto">${errorHtml}</ul>` : ""}`,
+        html: `<p>${data.processed || 0} baris berhasil (${data.created || 0} barang baru), ${data.skipped || 0} dilewati. Total qty masuk: ${formatNumber(data.total_qty)}.</p>${errorHtml ? `<ul style="margin-top:12px;text-align:left;font-size:12px;max-height:180px;overflow:auto">${errorHtml}</ul>` : ""}`,
       });
       setBulkFileName("");
       setBulkRows([]);
