@@ -597,62 +597,89 @@ const deleteKategoriBarang = asyncHandler(async (req, res) => {
 
 const getInventoryItems = asyncHandler(async (req, res) => {
   const search = String(req.query.search || '').trim();
-  const limit = Math.min(Math.max(Number(req.query.limit || 1000), 1), 1000);
+  const stockStatus = String(req.query.stock_status || 'all').trim();
+  const sort = String(req.query.sort || 'created').trim();
+  const page = Math.max(Number.parseInt(req.query.page, 10) || 1, 1);
+  const limit = Math.min(Math.max(Number.parseInt(req.query.limit, 10) || 25, 10), 100);
+  const offset = (page - 1) * limit;
   const params = [];
-  let whereSql = 'WHERE i.is_aktif = true';
-  let orderSql = 'ORDER BY i.created_at DESC, i.item_id DESC';
+  const conditions = ['i.is_aktif = true'];
+  let searchRankSql = '';
 
   if (search) {
     const locatorScan = search.toLowerCase().startsWith('loc:') ? search.slice(4).trim() : '';
+    const keyword = locatorScan || search;
+    params.push(`%${keyword}%`);
+    const likeParam = params.length;
+    params.push(keyword.toLowerCase());
+    const exactParam = params.length;
 
     if (locatorScan) {
-      params.push(`%${locatorScan}%`);
-      params.push(locatorScan.toLowerCase());
-      whereSql += ` AND i.locator ILIKE $1`;
-      orderSql = `ORDER BY
-        CASE
-          WHEN LOWER(i.locator) = $2 THEN 0
-          WHEN LOWER(i.locator) LIKE ($2 || '%') THEN 1
-          ELSE 2
-        END,
-        i.created_at DESC,
-        i.item_id DESC`;
+      conditions.push(`i.locator ILIKE $${likeParam}`);
+      searchRankSql = `CASE WHEN LOWER(i.locator) = $${exactParam} THEN 0 WHEN LOWER(i.locator) LIKE ($${exactParam} || '%') THEN 1 ELSE 2 END,`;
     } else {
-      params.push(`%${search}%`);
-      params.push(search.toLowerCase());
-      whereSql += ` AND (i.item_id ILIKE $1 OR i.nama ILIKE $1 OR i.locator ILIKE $1 OR s.nama ILIKE $1 OR k.nama ILIKE $1)`;
-      orderSql = `ORDER BY
-        CASE
-          WHEN LOWER(i.item_id) = $2 OR LOWER(i.locator) = $2 THEN 0
-          WHEN LOWER(i.item_id) LIKE ($2 || '%') OR LOWER(i.locator) LIKE ($2 || '%') THEN 1
-          ELSE 2
-        END,
-        i.created_at DESC,
-        i.item_id DESC`;
+      conditions.push(`(i.item_id ILIKE $${likeParam} OR i.nama ILIKE $${likeParam} OR i.locator ILIKE $${likeParam} OR s.nama ILIKE $${likeParam} OR k.nama ILIKE $${likeParam})`);
+      searchRankSql = `CASE WHEN LOWER(i.item_id) = $${exactParam} OR LOWER(i.locator) = $${exactParam} THEN 0 WHEN LOWER(i.item_id) LIKE ($${exactParam} || '%') OR LOWER(i.locator) LIKE ($${exactParam} || '%') THEN 1 ELSE 2 END,`;
     }
   }
 
-  params.push(limit);
-  const limitParam = params.length;
+  if (stockStatus === 'empty') conditions.push('i.stok <= 0');
+  if (stockStatus === 'low') conditions.push('i.stok > 0 AND i.stok <= i.minimum_stock');
+  if (stockStatus === 'safe') conditions.push('i.stok > i.minimum_stock');
 
-  const result = await query(
-    `SELECT i.item_id, i.nama, i.satuan_id, s.nama AS satuan, i.kategori_id, k.nama AS kategori, i.locator, i.stok, i.harga_modal, i.harga, i.minimum_stock, i.created_at
-       FROM inventory_items i
-       LEFT JOIN satuan_barang s ON s.satuan_id = i.satuan_id
-       LEFT JOIN kategori_barang k ON k.kategori_id = i.kategori_id
-      ${whereSql}
-      ${orderSql}
-      LIMIT $${limitParam}`,
+  const sortOptions = {
+    created: 'i.created_at DESC, i.item_id DESC',
+    stock_asc: 'i.stok ASC, i.nama ASC',
+    stock_desc: 'i.stok DESC, i.nama ASC',
+    value_desc: '(i.stok * i.harga_modal) DESC, i.nama ASC',
+    name: 'i.nama ASC, i.item_id ASC',
+    locator: "NULLIF(i.locator, '') ASC NULLS LAST, i.nama ASC",
+  };
+  const orderSql = `ORDER BY ${searchRankSql} ${sortOptions[sort] || sortOptions.created}`;
+  const whereSql = `WHERE ${conditions.join(' AND ')}`;
+  const joins = `LEFT JOIN satuan_barang s ON s.satuan_id = i.satuan_id
+                 LEFT JOIN kategori_barang k ON k.kategori_id = i.kategori_id`;
+
+  const countResult = await query(
+    `SELECT COUNT(*)::int AS total FROM inventory_items i ${joins} ${whereSql}`,
     params
   );
 
+  const dataParams = [...params, limit, offset];
+  const limitParam = params.length + 1;
+  const offsetParam = params.length + 2;
+  const result = await query(
+    `SELECT i.item_id, i.nama, i.satuan_id, s.nama AS satuan, i.kategori_id, k.nama AS kategori,
+            i.locator, i.stok, i.harga_modal, i.harga, i.minimum_stock, i.created_at
+       FROM inventory_items i
+       ${joins}
+       ${whereSql}
+       ${orderSql}
+       LIMIT $${limitParam} OFFSET $${offsetParam}`,
+    dataParams
+  );
+
+  const summaryResult = await query(
+    `SELECT COUNT(*)::int AS total_items,
+            COALESCE(SUM(stok), 0)::float AS total_stok,
+            COALESCE(SUM(stok * harga_modal), 0)::float AS total_nilai,
+            COUNT(*) FILTER (WHERE stok > 0 AND stok <= minimum_stock)::int AS stok_rendah,
+            COUNT(*) FILTER (WHERE stok <= 0)::int AS stok_kosong
+       FROM inventory_items
+      WHERE is_aktif = true`
+  );
+
+  const total = Number(countResult.rows[0]?.total || 0);
   return res.json({
     data: result.rows.map((row) => ({ ...row, created_at: formatDate(row.created_at) })),
-    total: result.rowCount,
+    total,
+    page,
+    limit,
+    total_pages: Math.max(Math.ceil(total / limit), 1),
+    summary: summaryResult.rows[0] || {},
     status: result.rowCount > 0 ? 1 : 2,
   });
 });
-
 const addInventoryItem = asyncHandler(async (req, res) => {
   const data = req.body || {};
   const nama = String(data.nama || '').trim();

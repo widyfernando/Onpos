@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   ArrowDownToLine,
   Barcode,
@@ -140,56 +140,50 @@ const Inventory = () => {
   const [uploading, setUploading] = useState(false);
   const [bulkFileName, setBulkFileName] = useState("");
   const [bulkRows, setBulkRows] = useState([]);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+  const [totalItems, setTotalItems] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const [summary, setSummary] = useState({ total_items: 0, total_stok: 0, total_nilai: 0, stok_rendah: 0, stok_kosong: 0 });
 
   const fetchItems = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await API.get("/inventory/items", { params: { search: searchTerm, limit: 120 } });
+      const response = await API.get("/inventory/items", {
+        params: {
+          search: searchTerm,
+          stock_status: stockFilter,
+          sort: sortBy,
+          page,
+          limit: pageSize,
+        },
+      });
       setItems(response.data.data || []);
+      setTotalItems(Number(response.data.total || 0));
+      setTotalPages(Number(response.data.total_pages || 1));
+      setSummary(response.data.summary || {});
     } catch (err) {
       console.error("Gagal memuat inventory:", err);
       Swal.fire("Error", "Gagal memuat data inventory.", "error");
     } finally {
       setLoading(false);
     }
-  }, [searchTerm]);
+  }, [page, pageSize, searchTerm, sortBy, stockFilter]);
 
   useEffect(() => {
-    const timer = setTimeout(fetchItems, 150);
+    const timer = setTimeout(fetchItems, 250);
     return () => clearTimeout(timer);
   }, [fetchItems]);
 
-  const totals = useMemo(() => {
-    return items.reduce(
-      (acc, item) => ({
-        stok: acc.stok + Number(item.stok || 0),
-        nilai: acc.nilai + Number(item.stok || 0) * Number(item.harga_modal || 0),
-        stokRendah: acc.stokRendah + (stockStatus(item).label === "Mau Habis" ? 1 : 0),
-        stokKosong: acc.stokKosong + (Number(item.stok || 0) <= 0 ? 1 : 0),
-      }),
-      { stok: 0, nilai: 0, stokRendah: 0, stokKosong: 0 }
-    );
-  }, [items]);
-
-  const visibleItems = useMemo(() => {
-    const filtered = items.filter((item) => {
-      const status = stockStatus(item).label;
-      if (stockFilter === "low") return status === "Mau Habis";
-      if (stockFilter === "empty") return status === "Kosong";
-      if (stockFilter === "safe") return status === "Aman";
-      return true;
-    });
-
-    return [...filtered].sort((a, b) => {
-      if (sortBy === "stock_asc") return Number(a.stok || 0) - Number(b.stok || 0);
-      if (sortBy === "stock_desc") return Number(b.stok || 0) - Number(a.stok || 0);
-      if (sortBy === "value_desc") return Number(b.stok || 0) * Number(b.harga_modal || 0) - Number(a.stok || 0) * Number(a.harga_modal || 0);
-      if (sortBy === "name") return String(a.nama || "").localeCompare(String(b.nama || ""), "id");
-      if (sortBy === "locator") return String(a.locator || "").localeCompare(String(b.locator || ""), "id");
-      return 0;
-    });
-  }, [items, sortBy, stockFilter]);
-
+  const totals = {
+    stok: Number(summary.total_stok || 0),
+    nilai: Number(summary.total_nilai || 0),
+    stokRendah: Number(summary.stok_rendah || 0),
+    stokKosong: Number(summary.stok_kosong || 0),
+  };
+  const visibleItems = items;
+  const firstItem = totalItems ? (page - 1) * pageSize + 1 : 0;
+  const lastItem = Math.min(page * pageSize, totalItems);
   const openTransaction = (item, tipe) => {
     setTransactionForm({
       item_id: item?.item_id || "",
@@ -425,7 +419,7 @@ const Inventory = () => {
           <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap sm:items-center">
             <button onClick={() => printBarcode(items)} disabled={!items.length} className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto">
               <Barcode size={17} />
-              Print Semua SKU
+              Print SKU Halaman
             </button>
             <button onClick={() => printLocatorBarcode(items)} disabled={!uniqueLocators(items).length} className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-indigo-200 bg-white px-4 text-sm font-semibold text-indigo-700 shadow-sm transition hover:bg-indigo-50 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto">
               <Barcode size={17} />
@@ -450,7 +444,7 @@ const Inventory = () => {
         <div className="mb-5 grid grid-cols-1 gap-4 md:grid-cols-5">
           <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
             <p className="text-sm text-slate-500">Total Item</p>
-            <p className="mt-2 text-2xl font-bold text-slate-950">{items.length}</p>
+            <p className="mt-2 text-2xl font-bold text-slate-950">{formatNumber(summary.total_items)}</p>
           </div>
           <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
             <p className="text-sm text-slate-500">Total Stok</p>
@@ -475,16 +469,16 @@ const Inventory = () => {
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <div>
                 <h2 className="text-lg font-bold text-slate-950">Daftar Inventory</h2>
-                <p className="mt-1 text-sm text-slate-500">Tampil {visibleItems.length} dari {items.length} barang aktif.</p>
+                <p className="mt-1 text-sm text-slate-500">Menampilkan {firstItem}-{lastItem} dari {formatNumber(totalItems)} barang.</p>
               </div>
-              <div className="grid w-full grid-cols-1 gap-2 sm:w-auto sm:grid-cols-[180px_180px_320px]">
-                <select value={stockFilter} onChange={(event) => setStockFilter(event.target.value)} className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100">
+              <div className="grid w-full grid-cols-1 gap-2 sm:w-auto sm:grid-cols-[160px_170px_110px_280px]">
+                <select value={stockFilter} onChange={(event) => { setStockFilter(event.target.value); setPage(1); }} className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100">
                   <option value="all">Semua Status</option>
                   <option value="low">Mau Habis</option>
                   <option value="empty">Kosong</option>
                   <option value="safe">Aman</option>
                 </select>
-                <select value={sortBy} onChange={(event) => setSortBy(event.target.value)} className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100">
+                <select value={sortBy} onChange={(event) => { setSortBy(event.target.value); setPage(1); }} className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100">
                   <option value="created">Terbaru</option>
                   <option value="stock_asc">Stok Terendah</option>
                   <option value="stock_desc">Stok Tertinggi</option>
@@ -492,16 +486,22 @@ const Inventory = () => {
                   <option value="name">Nama A-Z</option>
                   <option value="locator">Locator A-Z</option>
                 </select>
+                <select value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value)); setPage(1); }} className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100">
+                  <option value="10">10 / halaman</option>
+                  <option value="25">25 / halaman</option>
+                  <option value="50">50 / halaman</option>
+                  <option value="100">100 / halaman</option>
+                </select>
                 <div className="relative">
                   <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={17} />
                   <input
                     value={searchTerm}
-                    onChange={(event) => setSearchTerm(event.target.value)}
+                    onChange={(event) => { setSearchTerm(event.target.value); setPage(1); }}
                     placeholder="Cari barang, scan SKU atau locator..."
                     className="h-10 w-full rounded-lg border border-slate-200 bg-slate-50 pl-10 pr-10 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
                   />
                   {searchTerm && (
-                    <button type="button" onClick={() => setSearchTerm("")} className="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md text-slate-400 hover:bg-slate-100">
+                    <button type="button" onClick={() => { setSearchTerm(""); setPage(1); }} className="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md text-slate-400 hover:bg-slate-100">
                       <X size={15} />
                     </button>
                   )}
@@ -632,6 +632,21 @@ const Inventory = () => {
             ) : (
               <div className="px-5 py-12 text-center text-sm text-slate-500">Tidak ada data sesuai filter.</div>
             )}
+          </div>
+
+          <div className="flex flex-col gap-3 border-t border-slate-200 bg-slate-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-xs font-medium text-slate-500">
+              Halaman {page} dari {totalPages} · {formatNumber(totalItems)} data
+            </p>
+            <div className="flex items-center gap-2">
+              <button type="button" onClick={() => setPage((current) => Math.max(1, current - 1))} disabled={page <= 1 || loading} className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40">
+                Sebelumnya
+              </button>
+              <span className="min-w-20 text-center text-xs font-bold text-slate-700">{page} / {totalPages}</span>
+              <button type="button" onClick={() => setPage((current) => Math.min(totalPages, current + 1))} disabled={page >= totalPages || loading} className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40">
+                Berikutnya
+              </button>
+            </div>
           </div>
         </section>
       </section>
