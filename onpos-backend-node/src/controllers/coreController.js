@@ -795,6 +795,84 @@ const addInventoryTransaction = asyncHandler(async (req, res) => {
   return res.json({ status: 1, message: `Transaksi barang ${tipe.toLowerCase()} berhasil disimpan` });
 });
 
+const addBulkInventoryIncoming = asyncHandler(async (req, res) => {
+  const rows = Array.isArray(req.body?.rows) ? req.body.rows : [];
+  const catatan = String(req.body?.catatan || '').trim() || 'Upload barang masuk Master_Barang';
+
+  if (!rows.length) return res.status(400).json({ status: 0, message: 'Data upload kosong' });
+  if (rows.length > 3000) return res.status(400).json({ status: 0, message: 'Maksimal 3.000 baris per upload' });
+
+  const result = { processed: 0, skipped: 0, total_qty: 0, errors: [] };
+  await withTransaction(async (client) => {
+    for (let index = 0; index < rows.length; index += 1) {
+      const source = rows[index] || {};
+      const sku = String(source.sku || '').trim();
+      const nama = String(source.nama || '').trim();
+      const qty = Number(source.qty);
+      const harga = source.harga === '' || source.harga === null || source.harga === undefined ? null : Number(source.harga);
+      const rowNumber = Number(source.row_number) || index + 2;
+
+      if (!Number.isFinite(qty) || qty <= 0) {
+        result.skipped += 1;
+        result.errors.push({ row: rowNumber, sku, nama, message: 'Stok Terkini harus lebih dari 0' });
+        continue;
+      }
+      if (harga !== null && (!Number.isFinite(harga) || harga < 0)) {
+        result.skipped += 1;
+        result.errors.push({ row: rowNumber, sku, nama, message: 'HPP tidak valid' });
+        continue;
+      }
+
+      let item;
+      if (sku && sku !== '-') {
+        const bySku = await client.query(
+          'SELECT item_id, nama, stok, harga_modal FROM inventory_items WHERE LOWER(item_id) = LOWER($1) AND is_aktif = true FOR UPDATE',
+          [sku]
+        );
+        item = bySku.rows[0];
+      }
+      if (!item && nama) {
+        const byName = await client.query(
+          'SELECT item_id, nama, stok, harga_modal FROM inventory_items WHERE LOWER(TRIM(nama)) = LOWER(TRIM($1)) AND is_aktif = true ORDER BY item_id LIMIT 2 FOR UPDATE',
+          [nama]
+        );
+        if (byName.rowCount === 1) item = byName.rows[0];
+        else if (byName.rowCount > 1) {
+          result.skipped += 1;
+          result.errors.push({ row: rowNumber, sku, nama, message: 'Nama produk ditemukan lebih dari satu; gunakan SKU yang valid' });
+          continue;
+        }
+      }
+      if (!item) {
+        result.skipped += 1;
+        result.errors.push({ row: rowNumber, sku, nama, message: 'Barang tidak ditemukan di Master Barang' });
+        continue;
+      }
+
+      const stokSebelum = Number(item.stok || 0);
+      const stokSesudah = stokSebelum + qty;
+      await client.query(
+        `INSERT INTO inventory_transactions (item_id, tipe, qty, harga, stok_sebelum, stok_sesudah, catatan)
+         VALUES ($1, 'MASUK', $2, $3, $4, $5, $6)`,
+        [item.item_id, qty, harga, stokSebelum, stokSesudah, `${catatan} (baris ${rowNumber})`]
+      );
+      await client.query(
+        'UPDATE inventory_items SET stok = $1, harga_modal = COALESCE($2, harga_modal), updated_at = NOW() WHERE item_id = $3',
+        [stokSesudah, harga, item.item_id]
+      );
+      await addLog(client, actorName(req), item.item_id, 'INVENTORY', `Upload MASUK barang ${item.item_id} qty ${qty}`);
+      result.processed += 1;
+      result.total_qty += qty;
+    }
+  });
+
+  return res.json({
+    status: result.processed > 0 ? 1 : 2,
+    message: `${result.processed} baris berhasil diproses, ${result.skipped} baris dilewati`,
+    ...result,
+  });
+});
+
 const addStockOpname = asyncHandler(async (req, res) => {
   const data = req.body || {};
   const itemId = data.item_id;
@@ -1364,6 +1442,7 @@ module.exports = {
   deleteInventoryItem,
   updateInventoryPrice,
   addInventoryTransaction,
+  addBulkInventoryIncoming,
   addStockOpname,
   addBulkStockOpname,
   getInventoryHistory,

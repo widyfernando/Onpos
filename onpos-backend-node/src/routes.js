@@ -141,6 +141,7 @@ router.put('/inventory/items', controller.updateInventoryItem);
 router.delete('/inventory/items', controller.deleteInventoryItem);
 router.put('/inventory/price', controller.updateInventoryPrice);
 router.post('/inventory/transactions', controller.addInventoryTransaction);
+router.post('/inventory/transactions/bulk-incoming', controller.addBulkInventoryIncoming);
 router.post('/inventory/stock-opname', controller.addStockOpname);
 router.post('/inventory/stock-opname/bulk', controller.addBulkStockOpname);
 router.get('/inventory/history', controller.getInventoryHistory);

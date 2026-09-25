@@ -7,6 +7,7 @@ import {
   PackagePlus,
   Save,
   Search,
+  Upload,
   X,
 } from "lucide-react";
 import Swal from "sweetalert2";
@@ -16,6 +17,51 @@ const formatNumber = (value) => Number(value || 0).toLocaleString("id-ID");
 const formatMoney = (value) => `Rp ${Number(value || 0).toLocaleString("id-ID")}`;
 
 const transactionInitial = { item_id: "", nama: "", tipe: "MASUK", qty: "", harga: "", catatan: "" };
+
+const parseCsv = (text) => {
+  const rows = [];
+  let row = [];
+  let value = "";
+  let quoted = false;
+  const source = String(text || "").replace(/^\uFEFF/, "");
+
+  for (let index = 0; index < source.length; index += 1) {
+    const char = source[index];
+    if (char === '"') {
+      if (quoted && source[index + 1] === '"') {
+        value += '"';
+        index += 1;
+      } else {
+        quoted = !quoted;
+      }
+    } else if (char === "," && !quoted) {
+      row.push(value.trim());
+      value = "";
+    } else if ((char === "\n" || char === "\r") && !quoted) {
+      if (char === "\r" && source[index + 1] === "\n") index += 1;
+      row.push(value.trim());
+      if (row.some((cell) => cell !== "")) rows.push(row);
+      row = [];
+      value = "";
+    } else {
+      value += char;
+    }
+  }
+  row.push(value.trim());
+  if (row.some((cell) => cell !== "")) rows.push(row);
+  return rows;
+};
+
+const csvNumber = (value) => {
+  const cleaned = String(value ?? "").trim().replace(/[^0-9,.-]/g, "");
+  if (!cleaned) return "";
+  const normalized = cleaned.includes(",") && cleaned.includes(".")
+    ? cleaned.lastIndexOf(",") > cleaned.lastIndexOf(".")
+      ? cleaned.replace(/\./g, "").replace(",", ".")
+      : cleaned.replace(/,/g, "")
+    : cleaned.replace(",", ".");
+  return Number(normalized);
+};
 
 const CODE128_PATTERNS = [
   "212222", "222122", "222221", "121223", "121322", "131222", "122213", "122312", "132212", "221213",
@@ -91,6 +137,9 @@ const Inventory = () => {
   const [historyModal, setHistoryModal] = useState(null);
   const [historyData, setHistoryData] = useState({ transactions: [], prices: [] });
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [bulkFileName, setBulkFileName] = useState("");
+  const [bulkRows, setBulkRows] = useState([]);
 
   const fetchItems = useCallback(async () => {
     setLoading(true);
@@ -252,6 +301,77 @@ const Inventory = () => {
     printWindow.document.close();
     printWindow.focus();
     printWindow.print();
+  };
+
+  const readIncomingFile = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+
+    try {
+      const table = parseCsv(await file.text());
+      const headers = (table[0] || []).map((header) => header.trim().toLowerCase());
+      const column = (name) => headers.indexOf(name.toLowerCase());
+      const required = ["SKU", "Nama Produk", "HPP", "Stok Terkini"];
+      const missing = required.filter((name) => column(name) < 0);
+      if (missing.length) throw new Error(`Kolom wajib tidak ditemukan: ${missing.join(", ")}`);
+
+      const parsed = table.slice(1).map((row, index) => ({
+        row_number: index + 2,
+        sku: row[column("SKU")] || "",
+        nama: row[column("Nama Produk")] || "",
+        harga: csvNumber(row[column("HPP")]),
+        qty: csvNumber(row[column("Stok Terkini")]),
+      })).filter((row) => row.sku || row.nama);
+
+      if (!parsed.length) throw new Error("File tidak memiliki baris data.");
+      if (parsed.length > 3000) throw new Error("Maksimal 3.000 baris per upload.");
+      setBulkFileName(file.name);
+      setBulkRows(parsed);
+    } catch (error) {
+      setBulkFileName("");
+      setBulkRows([]);
+      Swal.fire("Format tidak sesuai", error.message || "CSV tidak dapat dibaca.", "warning");
+    }
+  };
+
+  const uploadIncoming = async () => {
+    if (!bulkRows.length) return;
+    const validRows = bulkRows.filter((row) => Number.isFinite(row.qty) && row.qty > 0);
+    const confirmation = await Swal.fire({
+      icon: "question",
+      title: "Proses barang masuk?",
+      text: `${validRows.length} dari ${bulkRows.length} baris memiliki Stok Terkini lebih dari 0. Stok tersebut akan ditambahkan ke stok saat ini.`,
+      showCancelButton: true,
+      confirmButtonText: "Proses Upload",
+      cancelButtonText: "Batal",
+    });
+    if (!confirmation.isConfirmed) return;
+
+    setUploading(true);
+    try {
+      const response = await API.post("/inventory/transactions/bulk-incoming", {
+        rows: bulkRows,
+        catatan: `Upload barang masuk dari ${bulkFileName}`,
+      });
+      const data = response.data;
+      const errorHtml = (data.errors || []).slice(0, 10)
+        .map((error) => `<li>Baris ${error.row}: ${error.nama || error.sku || "-"} — ${error.message}</li>`)
+        .join("");
+      await Swal.fire({
+        icon: data.processed > 0 ? "success" : "warning",
+        title: "Upload selesai",
+        html: `<p>${data.processed || 0} baris berhasil, ${data.skipped || 0} dilewati. Total qty masuk: ${formatNumber(data.total_qty)}.</p>${errorHtml ? `<ul style="margin-top:12px;text-align:left;font-size:12px;max-height:180px;overflow:auto">${errorHtml}</ul>` : ""}`,
+      });
+      setBulkFileName("");
+      setBulkRows([]);
+      fetchItems();
+    } catch (err) {
+      console.error("Gagal upload barang masuk:", err);
+      Swal.fire("Error", err.response?.data?.message || "Gagal memproses file.", "error");
+    } finally {
+      setUploading(false);
+    }
   };
 
   const submitTransaction = async (event) => {
@@ -513,9 +633,46 @@ const Inventory = () => {
 
       {transactionModal && (
         <div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-md overflow-hidden rounded-xl bg-white shadow-2xl">
+          <div className="max-h-[90vh] w-full max-w-2xl overflow-auto rounded-xl bg-white shadow-2xl">
             <ModalHeader title={transactionModal === "MASUK" ? "Barang Masuk" : "Barang Keluar"} subtitle={transactionForm.nama} onClose={() => setTransactionModal(null)} />
-            <form onSubmit={submitTransaction} className="space-y-4 p-6">
+            {transactionModal === "MASUK" && (
+              <section className="mx-6 mt-6 rounded-xl border border-dashed border-blue-300 bg-blue-50/60 p-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-sm font-bold text-slate-900">Upload CSV Master_Barang</p>
+                    <p className="mt-1 text-xs leading-5 text-slate-500">Format: SKU, Nama Produk, HPP, dan Stok Terkini. Qty akan ditambahkan sebagai barang masuk.</p>
+                  </div>
+                  <label className="inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-lg border border-blue-200 bg-white px-4 text-sm font-bold text-blue-700 shadow-sm hover:bg-blue-50">
+                    <Upload size={16} />
+                    Pilih CSV
+                    <input type="file" accept=".csv,text/csv" onChange={readIncomingFile} className="hidden" />
+                  </label>
+                </div>
+                {bulkRows.length > 0 && (
+                  <div className="mt-4">
+                    <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-xs font-semibold text-slate-700">{bulkFileName} · {bulkRows.length} baris</p>
+                      <button type="button" onClick={uploadIncoming} disabled={uploading} className="inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 text-xs font-bold text-white hover:bg-emerald-700 disabled:opacity-50">
+                        {uploading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
+                        Proses Upload
+                      </button>
+                    </div>
+                    <div className="max-h-36 overflow-auto rounded-lg border border-slate-200 bg-white">
+                      <table className="w-full text-xs">
+                        <thead className="sticky top-0 bg-slate-50 text-slate-500"><tr><th className="p-2 text-left">SKU</th><th className="p-2 text-left">Nama</th><th className="p-2 text-right">Qty</th><th className="p-2 text-right">HPP</th></tr></thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {bulkRows.slice(0, 20).map((row) => <tr key={row.row_number}><td className="p-2 font-mono">{row.sku || "-"}</td><td className="p-2">{row.nama || "-"}</td><td className="p-2 text-right">{Number.isFinite(row.qty) ? formatNumber(row.qty) : "Tidak valid"}</td><td className="p-2 text-right">{Number.isFinite(row.harga) ? formatMoney(row.harga) : "-"}</td></tr>)}
+                        </tbody>
+                      </table>
+                    </div>
+                    {bulkRows.length > 20 && <p className="mt-2 text-[11px] text-slate-500">Preview 20 baris pertama.</p>}
+                  </div>
+                )}
+              </section>
+            )}
+            <div className={transactionModal === "MASUK" ? "mx-6 mt-5 border-t border-slate-200 pt-5" : ""}>
+              {transactionModal === "MASUK" && <p className="mb-3 text-xs font-bold uppercase tracking-wide text-slate-500">Input Manual</p>}
+            <form onSubmit={submitTransaction} className="space-y-4 px-6 pb-6">
               <ItemLookup
                 items={items}
                 value={transactionForm.item_id}
@@ -535,6 +692,7 @@ const Inventory = () => {
               <Textarea label="Catatan" value={transactionForm.catatan} onChange={(value) => setTransactionForm((current) => ({ ...current, catatan: value }))} />
               <ModalActions saving={saving} onCancel={() => setTransactionModal(null)} />
             </form>
+            </div>
           </div>
         </div>
       )}
