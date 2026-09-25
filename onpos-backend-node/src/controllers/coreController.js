@@ -804,11 +804,11 @@ const addBulkInventoryIncoming = asyncHandler(async (req, res) => {
 
   const result = { processed: 0, created: 0, updated: 0, skipped: 0, total_qty: 0, errors: [] };
   await withTransaction(async (client) => {
-    const [itemsResult, categoriesResult, unitsResult] = await Promise.all([
-      client.query('SELECT item_id, nama, stok, harga_modal FROM inventory_items WHERE is_aktif = true FOR UPDATE'),
-      client.query('SELECT kategori_id, nama FROM kategori_barang WHERE is_aktif = true'),
-      client.query('SELECT satuan_id, nama FROM satuan_barang WHERE is_aktif = true'),
-    ]);
+    const itemsResult = await client.query(
+      'SELECT item_id, nama, stok, harga_modal FROM inventory_items WHERE is_aktif = true FOR UPDATE'
+    );
+    const categoriesResult = await client.query('SELECT kategori_id, nama FROM kategori_barang');
+    const unitsResult = await client.query('SELECT satuan_id, nama FROM satuan_barang');
     const nomorResult = await client.query("SELECT nomor FROM penomoran WHERE kategori = 'barang' FOR UPDATE");
     let nextNumber = Number(nomorResult.rows[0]?.nomor || 1);
     if (!nomorResult.rows[0]) {
@@ -867,17 +867,11 @@ const addBulkInventoryIncoming = asyncHandler(async (req, res) => {
       }
 
       let item = null;
-      const skuMatch = sku && sku !== '-' ? byId.get(normalize(sku)) : null;
-      if (skuMatch && normalize(skuMatch.nama) === normalize(nama)) item = skuMatch;
-      if (!item) {
-        const nameMatches = byName.get(normalize(nama)) || [];
-        if (nameMatches.length === 1) item = nameMatches[0];
-      }
+      const nameMatches = byName.get(normalize(nama)) || [];
+      if (nameMatches.length === 1) item = nameMatches[0];
 
       if (!item) {
-        const canUseSku = sku && sku !== '-' && sku.length <= 10 && !usedIds.has(normalize(sku));
-        const itemId = canUseSku ? sku : generatedId();
-        usedIds.add(normalize(itemId));
+        const itemId = generatedId();
         const locator = [source.gudang, source.rak].map((value) => String(value || '').trim()).filter(Boolean).join(' / ').slice(0, 80);
         item = {
           item_id: itemId,

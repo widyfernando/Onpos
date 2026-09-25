@@ -645,7 +645,7 @@ const Inventory = () => {
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <p className="text-sm font-bold text-slate-900">Upload CSV Master_Barang</p>
-                    <p className="mt-1 text-xs leading-5 text-slate-500">Format: SKU, Nama Produk, HPP, dan Stok Terkini. Qty akan ditambahkan sebagai barang masuk.</p>
+                    <p className="mt-1 text-xs leading-5 text-slate-500">Format Master_Barang: Nama Produk, HPP, dan Stok Terkini. SKU baru dibuat otomatis oleh sistem.</p>
                   </div>
                   <label className="inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-lg border border-blue-200 bg-white px-4 text-sm font-bold text-blue-700 shadow-sm hover:bg-blue-50">
                     <Upload size={16} />
